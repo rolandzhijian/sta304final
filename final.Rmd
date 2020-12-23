@@ -1,0 +1,101 @@
+---
+output:
+  word_document: default
+  html_document: default
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+library(tidyverse)
+library(knitr)
+```
+
+
+```{r}
+suppressWarnings(suppressMessages(library("cesR")))
+library(tidyverse)
+```
+
+
+```{r}
+get_decon()
+census_data <- read_csv("final.csv")
+
+decon2 <- decon %>% mutate(sex = case_when(gender == "A woman" ~ "Female",
+                                          gender == "A man" ~ "Male"),
+                          age = 2019 - as.numeric(as.character(yob)),
+                          education = case_when(education == "No schooling" ~ 0,
+                                                education == "Some elementary school" ~ 0,
+                                                education == "Completed elementary school" ~ 0,
+                                                education == "Some secondary/ high school" ~ 0,
+                                                education == "Completed secondary/ high school" ~ 1,
+                                                education == "Some technical, community college, CEGEP, College Classique" ~ 2,
+                                                education == "Completed technical, community college, CEGEP, College Classique" ~ 2,
+                                                education == "Some university" ~ 2,
+                                                education == "Bachelor's degree" ~ 3,
+                                                education == "Master's degree" ~ 4,
+                                                education == "Master's degree" ~ 4,
+                                                education == "Don't know/ Prefer not to answer" ~ 5),
+                          province=province_territory,
+                          income_respondent=case_when(income < 25000 ~"Less than $25,000",
+                                                      income < 50000 ~ "$25,000 to $49,999",
+                                                      income < 75000 ~ "$50,000 to $74,999",
+                                                      income < 100000 ~ "$75,000 to $99,999",
+                                                      income < 125000 ~ "$100,000 to $ 124,999",
+                                                      income >= 125000 ~ "$125,000 and more"),
+                          lr = as.numeric(lr),
+                          left_right = case_when(lr > 5 ~ 1,
+                                                 lr <= 5 ~ 0)) 
+
+```
+
+
+
+```{r}
+model <- glm(left_right ~ age + sex +education + province + income_respondent, 
+            data=decon2, family="binomial")
+model2 <- lm(lr ~ age + sex +education + province + income_respondent, 
+            data=decon2)
+```
+
+
+
+```{r tab1}
+knitr::kable(summary(model)$coef, digits=3)
+census_data$estimate1 <-
+  model %>%
+  predict(newdata = census_data, type="response")
+
+store <- census_data %>%
+  mutate(alp_predict_prop = estimate1*n) %>%
+  summarise(alp_predict = sum(alp_predict_prop)/sum(n))
+
+library(knitr)
+results <- data.frame(`Point estimate` = store$alp_predict,
+                      `Margin of error` = qnorm(.975) * sd(census_data$estimate1))
+kable(results, caption="Point estimate and margin of error of probabiliy of voted for Liberal Party",
+      digits=4)
+```
+
+
+```{r tab2}
+knitr::kable(summary(model2)$coef, digits=3)
+census_data$estimate2 <-
+  model2 %>%
+  predict(newdata = census_data, type="response")
+
+store <- census_data %>%
+  mutate(alp_predict_prop = estimate2*n) %>%
+  summarise(alp_predict = sum(alp_predict_prop)/sum(n))
+library(knitr)
+results <- data.frame(`Point estimate` = store$alp_predict,
+                      `Margin of error` = qnorm(.975) * sd(census_data$estimate2))
+kable(results, caption="Point estimate and margin of error of probabiliy of voted for Conservative Party",
+      digits=4)
+```
+
+
+
+
+
